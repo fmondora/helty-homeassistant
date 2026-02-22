@@ -19,10 +19,9 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.FAN, Platform.SENSOR, Platform.SWITCH]
 
-type HeltyConfigEntry = ConfigEntry
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: HeltyConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Helty VMC from a config entry."""
     session = aiohttp.ClientSession()
     api = HeltyCloudAPI(session)
@@ -69,7 +68,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HeltyConfigEntry) -> boo
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: HeltyConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a Helty VMC config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:

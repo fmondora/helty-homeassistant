@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 
 import aiohttp
-import aioboto3
 
 from .const import (
     API_BASE_URL,
@@ -18,6 +18,8 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+COGNITO_URL = f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com/"
 
 
 class HeltyAuthError(Exception):
@@ -46,32 +48,52 @@ class HeltyCloudAPI:
         """Return the current ID token."""
         return self._id_token
 
+    async def _cognito_request(self, action: str, payload: dict) -> dict:
+        """Make a direct HTTP request to the Cognito API."""
+        headers = {
+            "Content-Type": "application/x-amz-json-1.1",
+            "X-Amz-Target": f"AWSCognitoIdentityProviderService.{action}",
+        }
+        try:
+            async with self._session.post(
+                COGNITO_URL,
+                headers=headers,
+                data=json.dumps(payload),
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as resp:
+                body = await resp.json()
+                if resp.status != 200:
+                    error_type = body.get("__type", "")
+                    error_msg = body.get("message", "Unknown error")
+                    if "NotAuthorizedException" in error_type:
+                        raise HeltyAuthError("Invalid email or password")
+                    if "UserNotFoundException" in error_type:
+                        raise HeltyAuthError("User not found")
+                    raise HeltyConnectionError(
+                        f"Cognito error: {error_type} - {error_msg}"
+                    )
+                return body
+        except aiohttp.ClientError as err:
+            raise HeltyConnectionError(
+                f"Failed to connect to Cognito: {err}"
+            ) from err
+
     async def authenticate(self, email: str, password: str) -> dict:
         """Authenticate with AWS Cognito and return tokens."""
         self._email = email
         self._password = password
 
-        boto_session = aioboto3.Session()
-        async with boto_session.client(
-            "cognito-idp", region_name=COGNITO_REGION
-        ) as client:
-            try:
-                response = await client.initiate_auth(
-                    ClientId=COGNITO_CLIENT_ID,
-                    AuthFlow="USER_PASSWORD_AUTH",
-                    AuthParameters={
-                        "USERNAME": email,
-                        "PASSWORD": password,
-                    },
-                )
-            except client.exceptions.NotAuthorizedException as err:
-                raise HeltyAuthError("Invalid email or password") from err
-            except client.exceptions.UserNotFoundException as err:
-                raise HeltyAuthError("User not found") from err
-            except Exception as err:
-                raise HeltyConnectionError(
-                    f"Failed to connect to Cognito: {err}"
-                ) from err
+        response = await self._cognito_request(
+            "InitiateAuth",
+            {
+                "AuthFlow": "USER_PASSWORD_AUTH",
+                "ClientId": COGNITO_CLIENT_ID,
+                "AuthParameters": {
+                    "USERNAME": email,
+                    "PASSWORD": password,
+                },
+            },
+        )
 
         if "AuthenticationResult" not in response:
             challenge = response.get("ChallengeName", "unknown")
@@ -104,17 +126,16 @@ class HeltyCloudAPI:
 
     async def _refresh_auth(self) -> None:
         """Refresh authentication using refresh token."""
-        boto_session = aioboto3.Session()
-        async with boto_session.client(
-            "cognito-idp", region_name=COGNITO_REGION
-        ) as client:
-            response = await client.initiate_auth(
-                ClientId=COGNITO_CLIENT_ID,
-                AuthFlow="REFRESH_TOKEN_AUTH",
-                AuthParameters={
+        response = await self._cognito_request(
+            "InitiateAuth",
+            {
+                "AuthFlow": "REFRESH_TOKEN_AUTH",
+                "ClientId": COGNITO_CLIENT_ID,
+                "AuthParameters": {
                     "REFRESH_TOKEN": self._refresh_token,
                 },
-            )
+            },
+        )
 
         result = response["AuthenticationResult"]
         self._access_token = result.get("AccessToken")

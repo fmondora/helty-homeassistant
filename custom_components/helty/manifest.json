@@ -1,11 +1,11 @@
 {
   "domain": "helty",
   "name": "Helty VMC",
-  "codeowners": [],
+  "codeowners": ["@fmondora"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/your-repo/helty-ha",
+  "documentation": "https://github.com/fmondora/helty-homeassistant",
   "iot_class": "cloud_polling",
-  "requirements": ["aioboto3>=12.0", "aiohttp>=3.0"],
+  "requirements": [],
   "version": "1.0.0"
 }
