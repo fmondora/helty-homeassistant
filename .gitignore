@@ -1,4 +1,4 @@
 .env
-*.json
+snapshot.json
 __pycache__/
 *.pyc
