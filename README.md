@@ -121,11 +121,11 @@ automation:
           preset_mode: hyper
 ```
 
-Switch to night mode at bedtime:
+Night mode from 10:30 PM to 8:00 AM:
 
 ```yaml
 automation:
-  - alias: "VMC night mode"
+  - alias: "VMC night mode on"
     trigger:
       - platform: time
         at: "22:30:00"
@@ -135,6 +135,17 @@ automation:
           entity_id: fan.helty_1vmc02006e_flow40_pure
         data:
           preset_mode: night
+
+  - alias: "VMC normal mode morning"
+    trigger:
+      - platform: time
+        at: "08:00:00"
+    action:
+      - service: fan.set_preset_mode
+        target:
+          entity_id: fan.helty_1vmc02006e_flow40_pure
+        data:
+          preset_mode: normal
 ```
 
 ## How it works
