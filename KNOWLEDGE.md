@@ -1,5 +1,34 @@
 # Helty HCloud - Knowledge Base
 
+## Sources
+
+All information in this document was obtained from **publicly accessible sources**.
+Helty does **not** provide official API documentation or a developer portal.
+
+| Source | What was extracted | How |
+|--------|--------------------|-----|
+| [HCloud webapp](https://hcloud.heltyair.com) (Angular SPA) | Cognito config, API endpoints, command IDs, unit definitions | Inspecting the compiled JavaScript bundle in browser DevTools (`environment.ts`, service files) |
+| Network traffic analysis | REST API request/response formats, endpoint paths | Browser DevTools Network tab while using the webapp |
+| API responses (`GET /board/board/{serial}`) | Board type config, full command list, response field definitions, firmware versions | Authenticated API call available to any CLIENTE role user |
+| [HA Community: Modbus way](https://community.home-assistant.io/t/alpac-helty-flow-vmc-the-modbus-way/578774) | Modbus RTU register mapping (alternative protocol for non-Cloud models) | Community reverse engineering |
+| [HA Community: Packages VMC](https://community.home-assistant.io/t/packages-vmc-helty-flow/563288) | WiFi chip communication approach | Community project |
+| [DanRobo76/VMC-HELTY-FLOW](https://github.com/DanRobo76/VMC-HELTY-FLOW) | Port 5001 Air Guard protocol (non-Cloud models only) | Community project |
+
+**Note**: The HCloud REST API used by this integration is the same API that powers the official
+[HCloud webapp](https://hcloud.heltyair.com) and [Helty Home app](https://www.heltyair.com/en/products/hrv-apps-and-accessories/helty-home-app/).
+No undocumented or private APIs are used beyond what the webapp itself calls.
+
+### Other community integration approaches
+
+| Project | Protocol | Requires hardware | Works with Cloud Panel |
+|---------|----------|-------------------|----------------------|
+| This integration | HCloud REST API (cloud) | No | **Yes** |
+| [Modbus way](https://community.home-assistant.io/t/alpac-helty-flow-vmc-the-modbus-way/578774) | Modbus RTU RS485 | Yes (ESP8266 + MAX485) | No (older models) |
+| [VMC-HELTY-FLOW](https://github.com/DanRobo76/VMC-HELTY-FLOW) | TCP port 5001 (Air Guard) | No | No (older models) |
+| [Packages VMC](https://community.home-assistant.io/t/packages-vmc-helty-flow/563288) | WiFi chip | No | Partially |
+
+---
+
 Reverse-engineered from the HCloud web application at `hcloud.heltyair.com` (Angular SPA).
 
 ## Architecture Overview
@@ -30,15 +59,15 @@ come back asynchronously via MQTT and are cached in the `laststatus` log endpoin
 | Region | `eu-central-1` |
 | User Pool ID | `eu-central-1_lejYSlqKZ` |
 | Client ID | `7k0c21g92bk3413frij8rso6rk` |
-| Client Secret | `REDACTED_COGNITO_CLIENT_SECRET` |
+| Client Secret | *(in `.env` as `COGNITO_CLIENT_SECRET`, not needed for USER_PASSWORD_AUTH)* |
 | Auth Flow | `USER_PASSWORD_AUTH` (no SECRET_HASH needed) |
 | OAuth Domain | `hcloud-prod.auth.eu-central-1.amazoncognito.com` |
-| OAuth Client ID | `REDACTED_OAUTH_CLIENT_ID` |
+| OAuth Client ID | *(in `.env` as `COGNITO_OAUTH_CLIENT_ID`)* |
 | OAuth Scopes | `profile`, `openid` |
 | Redirect Sign In | `https://hcloud.heltyair.com/login` |
 | Redirect Sign Out | `https://hcloud.heltyair.com/logout` |
-| S3 Bucket | `REDACTED_S3_BUCKET` |
-| IoT Account | `REDACTED_AWS_IOT_ACCOUNT` |
+| S3 Bucket | *(in `.env` as `S3_BUCKET`)* |
+| IoT Account | *(in `.env` as `AWS_IOT_ACCOUNT`)* |
 
 **Auth returns**: `AccessToken`, `IdToken`, `RefreshToken`. Use `IdToken` as Bearer token for API calls.
 
@@ -392,10 +421,10 @@ Fields with index > 0 and CLIENTE=Yes are returned by the `laststatus` endpoint 
 
 | Type | Topic ARN |
 |------|-----------|
-| Command | `arn:aws:iot:eu-central-1:REDACTED_AWS_IOT_ACCOUNT:topic/{constructorId}/prod/cmd/{boardSerial}` |
-| Event | `arn:aws:iot:eu-central-1:REDACTED_AWS_IOT_ACCOUNT:topic/{constructorId}/prod/evt/{boardSerial}` |
+| Command | `arn:aws:iot:{region}:{iotAccount}:topic/{constructorId}/prod/cmd/{boardSerial}` |
+| Event | `arn:aws:iot:{region}:{iotAccount}:topic/{constructorId}/prod/evt/{boardSerial}` |
 
-Constructor ID for Helty: `REDACTED_CONSTRUCTOR_ID`
+IoT Account and Constructor ID are stored in `.env` (`AWS_IOT_ACCOUNT`, `HELTY_CONSTRUCTOR_ID`).
 
 No Identity Pool ID was found in the webapp config, so direct MQTT subscription
 from client-side is not straightforward. The webapp relies on REST polling via `laststatus`.
@@ -410,14 +439,10 @@ It communicates exclusively via MQTT through AWS IoT Core.
 
 ### Tuya Devices on Network (Thermostats, NOT VMC)
 
-| Name | IP | Category |
-|------|-----|----------|
-| Bagno grande | REDACTED_IP_1 | wk (thermostat) |
-| Camera da letto | REDACTED_IP_2 | wk (thermostat) |
-| Soggiorno Cosaggio | REDACTED_IP_3 | wk (thermostat) |
-
+Tuya thermostats on the local network are separate devices (category `wk`), not the VMC.
 Product Key: `cbptny9rjkskvbnc`, Protocol: v3.5, Encryption: Yes.
 Local keys retrievable via Tuya Cloud API endpoint `GET /v2.0/cloud/thing/{deviceId}`.
+Device-specific IPs and keys are stored in `.env`.
 
 ### VMC Local Control: NOT POSSIBLE
 
@@ -427,17 +452,9 @@ Local keys retrievable via Tuya Cloud API endpoint `GET /v2.0/cloud/thing/{devic
 
 ### HCloud Tuya Account
 
-HCloud manages a Tuya account per user (stored in user profile):
-```json
-{
-  "tuya": {
-    "uid": "REDACTED_TUYA_UID",
-    "email": "...",
-    "password": "REDACTED_TUYA_PASSWORD",
-    "homeId": REDACTED_TUYA_HOME_ID
-  }
-}
-```
+HCloud manages a Tuya account per user (stored in user profile).
+The profile contains `uid`, `email`, `password`, and `homeId` fields.
+Account-specific values are stored in `.env` (see `HCLOUD_TUYA_*` variables).
 
 ---
 
