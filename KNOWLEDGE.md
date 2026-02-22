@@ -404,20 +404,30 @@ from client-side is not straightforward. The webapp relies on REST polling via `
 
 ## Tuya Integration
 
-The VMC devices also use Tuya ecosystem internally:
+**IMPORTANT**: The Tuya devices on the local network are **thermostats**, NOT the VMC.
+The VMC (Flow40 Pure with Cloud Panel) does NOT expose a local Tuya interface.
+It communicates exclusively via MQTT through AWS IoT Core.
 
-| Parameter | Value |
-|-----------|-------|
-| Product Key | `cbptny9rjkskvbnc` |
-| Protocol Version | 3.5 |
-| Encryption | Yes |
+### Tuya Devices on Network (Thermostats, NOT VMC)
 
-Devices appear on the local network as Tuya v3.5 devices but require local keys
-from the Tuya IoT developer portal to communicate locally. They are NOT visible
-in the standard Tuya/Smart Life app - they use a custom Tuya OEM integration
-managed by Helty's backend.
+| Name | IP | Category |
+|------|-----|----------|
+| Bagno grande | 192.168.1.105 | wk (thermostat) |
+| Camera da letto | 192.168.1.206 | wk (thermostat) |
+| Soggiorno Cosaggio | 192.168.1.95 | wk (thermostat) |
 
-The HCloud user profile stores Tuya credentials:
+Product Key: `cbptny9rjkskvbnc`, Protocol: v3.5, Encryption: Yes.
+Local keys retrievable via Tuya Cloud API endpoint `GET /v2.0/cloud/thing/{deviceId}`.
+
+### VMC Local Control: NOT POSSIBLE
+
+- **Port 5001** (Air Guard protocol): open but connection reset by Cloud Panel
+- **Tuya local**: VMC not present as Tuya device on network
+- **Only option**: HCloud REST API via internet
+
+### HCloud Tuya Account
+
+HCloud manages a Tuya account per user (stored in user profile):
 ```json
 {
   "tuya": {
