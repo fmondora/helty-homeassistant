@@ -61,7 +61,7 @@ class HeltyCloudAPI:
                 data=json.dumps(payload),
                 timeout=aiohttp.ClientTimeout(total=15),
             ) as resp:
-                body = await resp.json()
+                body = json.loads(await resp.text())
                 if resp.status != 200:
                     error_type = body.get("__type", "")
                     error_msg = body.get("message", "Unknown error")
@@ -189,26 +189,30 @@ class HeltyCloudAPI:
         devices = []
         for p in products:
             ci = p.get("clientInfo")
-            if ci and ci.get("mail"):
-                cb = p.get("cloudBoard", {})
-                inst = p.get("currentInstallation", {})
-                devices.append(
-                    {
-                        "product_id": p["_id"],
-                        "serial": p.get("serialNumber"),
-                        "model": p.get("productType", {}).get("model", "Unknown"),
-                        "line": p.get("productType", {}).get("line", ""),
-                        "board_serial": p.get("boardSerialNumber"),
-                        "board_id": cb.get("_id") if cb else None,
-                        "installation": (
-                            f"{inst.get('name', '')} - {inst.get('place', '')}"
-                            if inst
-                            else "N/A"
-                        ),
-                        "owner": f"{ci.get('name', '')} {ci.get('lastName', '')}",
-                        "email": ci.get("mail"),
-                    }
-                )
+            if not ci or not ci.get("mail"):
+                continue
+            # Only include devices belonging to the authenticated user
+            if self._email and ci["mail"].lower() != self._email.lower():
+                continue
+            cb = p.get("cloudBoard", {})
+            inst = p.get("currentInstallation", {})
+            devices.append(
+                {
+                    "product_id": p["_id"],
+                    "serial": p.get("serialNumber"),
+                    "model": p.get("productType", {}).get("model", "Unknown"),
+                    "line": p.get("productType", {}).get("line", ""),
+                    "board_serial": p.get("boardSerialNumber"),
+                    "board_id": cb.get("_id") if cb else None,
+                    "installation": (
+                        f"{inst.get('name', '')} - {inst.get('place', '')}"
+                        if inst
+                        else "N/A"
+                    ),
+                    "owner": f"{ci.get('name', '')} {ci.get('lastName', '')}",
+                    "email": ci.get("mail"),
+                }
+            )
         return devices
 
     async def send_command(self, board_serial: str, command_id: int) -> dict:
